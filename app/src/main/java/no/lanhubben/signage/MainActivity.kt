@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var container: FrameLayout
+    private var menuDialog: AlertDialog? = null
     private val prefs by lazy { getSharedPreferences("signage", MODE_PRIVATE) }
     private val handler = Handler(Looper.getMainLooper())
     private val retryDelayMs = 10_000L
@@ -70,7 +71,7 @@ class MainActivity : AppCompatActivity() {
         CookieManager.getInstance().setAcceptCookie(true)
 
         webView.webChromeClient = object : WebChromeClient() {
-            // Skjuler WebViews grÃ¥ standard play-ikon mens video lastes
+    // OK/Select åpner meny, Menytasten åpner rotasjonsvalg, Play/Pause laster siden på nytt
             override fun getDefaultVideoPoster(): Bitmap =
                 Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.TRANSPARENT) }
 
@@ -118,6 +119,20 @@ class MainActivity : AppCompatActivity() {
         webView.rotation = rotation.toFloat()
     }
 
+    private fun showMenu() {
+        if (menuDialog?.isShowing == true) return
+        val items = arrayOf("Last siden på nytt", "Endre skjermrotasjon", "Avbryt")
+        menuDialog = AlertDialog.Builder(this)
+            .setTitle("Lanhubben Signage")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> webView.loadUrl(BuildConfig.PLAYER_URL)
+                    1 -> showRotationDialog()
+                }
+            }
+            .show()
+    }
+
     private fun showRotationDialog() {
         val labels = arrayOf(
             "Liggende (standard)",
@@ -158,11 +173,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Menytast/Play-Pause-tast laster siden pÃƒÂ¥ nytt (nyttig ved feilsÃƒÂ¸king)
+    // OK/Select åpner meny, Menytasten åpner rotasjonsvalg, Play/Pause laster siden på nytt
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
-            webView.loadUrl(BuildConfig.PLAYER_URL)
-            return true
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_BUTTON_A,
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+                showMenu()
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                webView.loadUrl(BuildConfig.PLAYER_URL)
+                return true
+            }
         }
         return super.onKeyDown(keyCode, event)
     }
@@ -184,6 +207,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        menuDialog?.dismiss()
         handler.removeCallbacksAndMessages(null)
         webView.destroy()
         super.onDestroy()
