@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Lanhubben Signage</string>
+    <string name="settings_label">Lanhubben Innstillinger</string>
 </resources>

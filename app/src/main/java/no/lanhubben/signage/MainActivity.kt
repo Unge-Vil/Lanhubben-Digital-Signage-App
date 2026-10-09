@@ -1,6 +1,7 @@
 package no.lanhubben.signage
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.http.SslError
@@ -20,6 +21,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.Gravity
 import android.widget.FrameLayout
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -103,7 +105,24 @@ class MainActivity : AppCompatActivity() {
         else webView.restoreState(savedInstanceState)
 
         if (!prefs.contains(KEY_ROTATION)) showRotationDialog()
+        else if (isSettingsLaunch(intent)) showMenu()
+
+        // Tilbake-knappen åpner menyen i stedet for å forlate appen ved et uhell
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = showMenu()
+        })
+
+        // Langt trykk på berøringsskjerm/mus åpner menyen
+        webView.setOnLongClickListener { showMenu(); true }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (isSettingsLaunch(intent)) showMenu()
+    }
+
+    private fun isSettingsLaunch(intent: Intent?) =
+        intent?.component?.className?.endsWith("SettingsAlias") == true
 
     private fun applyRotation() {
         val rotation = prefs.getInt(KEY_ROTATION, 0)
@@ -121,13 +140,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun showMenu() {
         if (menuDialog?.isShowing == true) return
-        val items = arrayOf("Last siden på nytt", "Endre skjermrotasjon", "Avbryt")
+        val items = arrayOf("Last siden på nytt", "Endre skjermrotasjon", "Avslutt appen", "Lukk meny")
         menuDialog = AlertDialog.Builder(this)
             .setTitle("Lanhubben Signage")
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> webView.loadUrl(BuildConfig.PLAYER_URL)
                     1 -> showRotationDialog()
+                    2 -> finishAndRemoveTask()
                 }
             }
             .show()
@@ -178,7 +198,9 @@ class MainActivity : AppCompatActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_BUTTON_A,
-            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS,
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 showMenu()
                 return true
             }
