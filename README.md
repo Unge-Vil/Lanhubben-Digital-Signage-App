@@ -1,8 +1,4 @@
 <p align="center">
-  <img src="docs/banner.png" alt="LAN-HUBBEN – powered by Haugesund Lankultur" width="100%">
-</p>
-
-<p align="center">
   <img src="docs/icon.png" alt="Lanhubben-ikon" width="120">
 </p>
 
