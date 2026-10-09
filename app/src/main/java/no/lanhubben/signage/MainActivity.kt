@@ -1,13 +1,19 @@
 package no.lanhubben.signage
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -16,11 +22,14 @@ import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.Gravity
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -32,11 +41,30 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var container: FrameLayout
+    private lateinit var stage: FrameLayout
+    private lateinit var errorOverlay: LinearLayout
+    private lateinit var errorTitle: TextView
+    private lateinit var errorDetail: TextView
+    private lateinit var errorCountdown: TextView
+    private var pageHadError = false
+    private var secondsLeft = 0
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var menuDialog: AlertDialog? = null
     private val prefs by lazy { getSharedPreferences("signage", MODE_PRIVATE) }
     private val handler = Handler(Looper.getMainLooper())
     private val retryDelayMs = 10_000L
-    private val reload = Runnable { webView.loadUrl(BuildConfig.PLAYER_URL) }
+    private val tick = object : Runnable {
+        override fun run() {
+            if (errorOverlay.visibility != View.VISIBLE) return
+            if (secondsLeft <= 0) {
+                loadPlayer()
+                return
+            }
+            errorCountdown.text = "Prøver igjen om $secondsLeft sek"
+            secondsLeft--
+            handler.postDelayed(this, 1000)
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,9 +80,14 @@ class MainActivity : AppCompatActivity() {
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
         }
+        buildErrorOverlay()
+        stage = FrameLayout(this).apply {
+            addView(webView, FrameLayout.LayoutParams(-1, -1))
+            addView(errorOverlay, FrameLayout.LayoutParams(-1, -1))
+        }
         container = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
-            addView(webView)
+            addView(stage)
             addOnLayoutChangeListener { _, l, t, r, b, ol, ot, orr, ob ->
                 if (r - l != orr - ol || b - t != ob - ot) applyRotation()
             }
@@ -73,27 +106,54 @@ class MainActivity : AppCompatActivity() {
         CookieManager.getInstance().setAcceptCookie(true)
 
         webView.webChromeClient = object : WebChromeClient() {
-    // OK/Select åpner meny, Menytasten åpner rotasjonsvalg, Play/Pause laster siden på nytt
             override fun getDefaultVideoPoster(): Bitmap =
                 Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.TRANSPARENT) }
 
             override fun getVideoLoadingProgressView(): View = View(this@MainActivity)
         }
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                pageHadError = false
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
-                handler.removeCallbacks(reload)
                 CookieManager.getInstance().flush()
+                if (!pageHadError) hideError()
             }
 
             override fun onReceivedError(
                 view: WebView?, request: WebResourceRequest?, error: WebResourceError?
             ) {
-                if (request?.isForMainFrame == true) scheduleReload()
+                if (request?.isForMainFrame != true) return
+                val online = isOnline()
+                showError(
+                    if (online) "Får ikke kontakt med Lanhubben" else "Ingen nettverkstilkobling",
+                    if (online) "Serveren svarer ikke. Sjekk at lanhubben.no er oppe."
+                    else "Sjekk at enheten er koblet til Wi-Fi eller nettverk.",
+                    "Feilkode ${error?.errorCode}: ${error?.description}"
+                )
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?
+            ) {
+                val status = errorResponse?.statusCode ?: 0
+                if (request?.isForMainFrame == true && status >= 400) {
+                    showError(
+                        "Lanhubben svarer med en feil",
+                        "Tjenesten er midlertidig utilgjengelig.",
+                        "HTTP $status"
+                    )
+                }
             }
 
             override fun onReceivedSslError(view: WebView?, h: android.webkit.SslErrorHandler?, e: SslError?) {
                 h?.cancel()
-                scheduleReload()
+                showError(
+                    "Sikker tilkobling feilet",
+                    "Sjekk at dato og klokkeslett er riktig på enheten.",
+                    "SSL-feil"
+                )
             }
 
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
@@ -102,7 +162,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (savedInstanceState == null) webView.loadUrl(BuildConfig.PLAYER_URL)
+        if (savedInstanceState == null) loadPlayer()
         else webView.restoreState(savedInstanceState)
 
         if (!prefs.contains(KEY_ROTATION)) showRotationDialog()
@@ -131,12 +191,12 @@ class MainActivity : AppCompatActivity() {
         val h = container.height
         if (w == 0 || h == 0) return
         val sideways = rotation == 90 || rotation == 270
-        webView.layoutParams = FrameLayout.LayoutParams(
+        stage.layoutParams = FrameLayout.LayoutParams(
             if (sideways) h else w,
             if (sideways) w else h,
             Gravity.CENTER
         )
-        webView.rotation = rotation.toFloat()
+        stage.rotation = rotation.toFloat()
     }
 
     private fun showMenu() {
@@ -146,7 +206,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Lanhubben Signage")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> webView.loadUrl(BuildConfig.PLAYER_URL)
+                    0 -> loadPlayer()
                     1 -> showRotationDialog()
                     2 -> finishAndRemoveTask()
                 }
@@ -170,16 +230,74 @@ class MainActivity : AppCompatActivity() {
                 applyRotation()
                 dialog.dismiss()
             }
-            .setNeutralButton("Last siden på nytt") { _, _ -> webView.loadUrl(BuildConfig.PLAYER_URL) }
+            .setNeutralButton("Last siden på nytt") { _, _ -> loadPlayer() }
             .setOnCancelListener {
                 if (!prefs.contains(KEY_ROTATION)) prefs.edit().putInt(KEY_ROTATION, 0).apply()
             }
             .show()
     }
 
-    private fun scheduleReload() {
-        handler.removeCallbacks(reload)
-        handler.postDelayed(reload, retryDelayMs)
+    private fun loadPlayer() {
+        handler.removeCallbacks(tick)
+        webView.loadUrl(BuildConfig.PLAYER_URL)
+    }
+
+    private fun isOnline(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private fun showError(title: String, detail: String, technical: String) {
+        pageHadError = true
+        errorTitle.text = title
+        errorDetail.text = "$detail\n$technical"
+        errorOverlay.visibility = View.VISIBLE
+        secondsLeft = (retryDelayMs / 1000).toInt()
+        handler.removeCallbacks(tick)
+        handler.post(tick)
+    }
+
+    private fun hideError() {
+        handler.removeCallbacks(tick)
+        errorOverlay.visibility = View.GONE
+    }
+
+    private fun buildErrorOverlay() {
+        fun label(size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
+            setTextColor(color)
+            gravity = Gravity.CENTER
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, 12, 0, 12)
+        }
+        errorTitle = label(34f, Color.parseColor("#5CFFF0"), true)
+        errorDetail = label(20f, Color.parseColor("#B0B6C0"))
+        errorCountdown = label(18f, Color.parseColor("#7A8190"))
+        errorOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#0B0C10"))
+            setPadding(96, 48, 96, 48)
+            visibility = View.GONE
+            addView(label(22f, Color.parseColor("#7A8190")).apply { text = "LAN-HUBBEN" })
+            addView(errorTitle)
+            addView(errorDetail)
+            addView(errorCountdown)
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                handler.post { if (errorOverlay.visibility == View.VISIBLE) loadPlayer() }
+            }
+        }
+        cm.registerNetworkCallback(
+            NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), cb
+        )
+        networkCallback = cb
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -206,7 +324,7 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                webView.loadUrl(BuildConfig.PLAYER_URL)
+                loadPlayer()
                 return true
             }
         }
@@ -220,6 +338,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (networkCallback == null) registerNetworkCallback()
         webView.onResume()
         webView.resumeTimers()
     }
@@ -232,6 +351,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         menuDialog?.dismiss()
+        networkCallback?.let {
+            (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(it)
+        }
         handler.removeCallbacksAndMessages(null)
         webView.destroy()
         super.onDestroy()

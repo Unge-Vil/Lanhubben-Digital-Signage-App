@@ -16,10 +16,10 @@ Appen åpner Lanhubbens digital signage-spiller i fullskjerm, uten innlogging el
 
 - Fullskjerm uten menyer, og skjermen holdes våken mens appen kjører
 - Video og lyd starter automatisk
-- Prøver på nytt hvert 10. sekund hvis nettverket faller ut
+- Egen feilskjerm hvis siden ikke kan lastes (ingen nett, serverfeil, SSL), med nedtelling og automatisk nytt forsøk. Laster på nytt med en gang nettverket er tilbake
 - Skjermrotasjon (0°/90°/180°/270°) for TV-er i stående format. Valget vises første gang appen startes, og huskes
 - Meny med «Last siden på nytt», «Endre skjermrotasjon» og «Avslutt appen»
-- Dukker opp i Android TV-launcheren, og forsøker å starte ved oppstart av enheten
+- Dukker opp i Android TV-launcheren, og forsøker å starte automatisk når enheten skrus på (se under)
 
 ## Bruk
 
@@ -52,7 +52,7 @@ winget install Google.PlatformTools
 
 ```powershell
 adb connect 192.168.1.50:5555
-adb install -r .\lanhubben-signage-v1.0.apk
+adb install -r .\lanhubben-signage-v1.0.1.apk
 ```
 </details>
 
@@ -62,7 +62,7 @@ adb install -r .\lanhubben-signage-v1.0.apk
 ```bash
 brew install android-platform-tools
 adb connect 192.168.1.50:5555
-adb install -r ./lanhubben-signage-v1.0.apk
+adb install -r ./lanhubben-signage-v1.0.1.apk
 ```
 </details>
 
@@ -78,7 +78,7 @@ sudo dnf install android-tools
 sudo pacman -S android-tools
 
 adb connect 192.168.1.50:5555
-adb install -r ./lanhubben-signage-v1.0.apk
+adb install -r ./lanhubben-signage-v1.0.1.apk
 ```
 </details>
 
@@ -87,6 +87,10 @@ Bytt ut `192.168.1.50` med IP-adressen til TV-en. Godkjenn «Tillat feilsøking�
 Appen finner du under «Apper» på TV-en. Du kan koble fra med `adb disconnect`.
 
 **Alternativ uten PC:** installer «Downloader» fra Play Store på TV-en, tillat «Installer ukjente apper» for den, og skriv inn nettadressen til APK-en.
+
+## Autostart
+
+Appen forsøker å starte når enheten skrus på. Android 10 og nyere kan blokkere at apper åpner seg selv i bakgrunnen, så på noen enheter må noen åpne appen manuelt én gang etter strømbrudd. Der autostart virker, starter den uten at noen må gjøre noe.
 
 ## Hindre sleep og skjermsparer
 

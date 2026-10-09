@@ -1,5 +1,11 @@
 # Endringslogg
 
+## v1.0.1 – 2026-10-09
+
+- Ny feilskjerm i Lanhubben-stil når siden ikke kan lastes: viser hva som er galt (ingen nettverk, serveren svarer ikke, HTTP-feil, SSL-feil), feilkode og nedtelling til neste forsøk. Laster automatisk på nytt når nettverket kommer tilbake
+- Autostart: appen forsøker nå å starte etter oppstart av enheten og etter oppdatering (manglende tillatelse er lagt til). På Android 10 og nyere kan systemet blokkere dette, og da må appen åpnes manuelt én gang
+- Parringen huskes: cookies skrives til disk så den overlever strømbrudd
+
 ## v1.0 – 2026-10-09
 
 Første versjon.
