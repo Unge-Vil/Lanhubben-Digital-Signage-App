@@ -82,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 handler.removeCallbacks(reload)
+                CookieManager.getInstance().flush()
             }
 
             override fun onReceivedError(
@@ -225,6 +226,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         webView.onPause()
+        CookieManager.getInstance().flush()
         super.onPause()
     }
 
