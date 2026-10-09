@@ -4,6 +4,7 @@ Enkel Android TV / Google TV-app som viser
 <https://www.lanhubben.no/lankultur/public/player.php> i fullskjerm.
 
 - Fullskjerm (WebView), skjermen holdes våken, lyd/video spiller automatisk
+- Første gang vises et valg for skjermrotasjon (0°/90°/180°/270°) for TV-er i stående format. Valget huskes.
 - Prøver på nytt hvert 10. sekund ved nettverksfeil
 - Dukker opp i Android TV-launcheren (Leanback), forsøker å starte ved oppstart
 - Menytast / Play-Pause på fjernkontrollen laster siden på nytt
