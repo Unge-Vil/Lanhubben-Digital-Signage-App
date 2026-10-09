@@ -1,5 +1,10 @@
 # Endringslogg
 
+## Ikke utgitt
+
+- Fjernstyring: Lanhubben-siden kan kalle window.LanhubbenApp (getInfo, eload, setRotation, estartApp). Se docs/REMOTE_CONTROL.md
+- Hovedsiden kan bare navigere innen lanhubben.no
+
 ## v1.0.1 – 2026-10-09
 
 - Ny feilskjerm i Lanhubben-stil når siden ikke kan lastes: viser hva som er galt (ingen nettverk, serveren svarer ikke, HTTP-feil, SSL-feil), feilkode og nedtelling til neste forsøk. Laster automatisk på nytt når nettverket kommer tilbake

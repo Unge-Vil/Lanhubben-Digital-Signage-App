@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.Uri
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.http.SslError
@@ -14,10 +15,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.os.Build
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -26,6 +29,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import org.json.JSONObject
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -46,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var errorTitle: TextView
     private lateinit var errorDetail: TextView
     private lateinit var errorCountdown: TextView
+    @Volatile private var trustedPage = false
     private var pageHadError = false
     private var secondsLeft = 0
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
@@ -114,7 +119,12 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 pageHadError = false
+                trustedPage = isTrustedUrl(url)
             }
+
+            // Hovedsiden kan bare navigere innen lanhubben.no, slik at kontrollgrensesnittet ikke eksponeres andre steder
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
+                request?.isForMainFrame == true && !isTrustedUrl(request.url?.toString())
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 CookieManager.getInstance().flush()
@@ -175,6 +185,9 @@ class MainActivity : AppCompatActivity() {
 
         // Langt trykk på berøringsskjerm/mus åpner menyen
         webView.setOnLongClickListener { showMenu(); true }
+
+        webView.addJavascriptInterface(AppBridge(), "LanhubbenApp")
+        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -357,6 +370,46 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
         webView.destroy()
         super.onDestroy()
+    }
+
+    private fun isTrustedUrl(url: String?): Boolean {
+        val uri = Uri.parse(url ?: return false)
+        val host = uri.host ?: return false
+        return uri.scheme == "https" && (host == "lanhubben.no" || host.endsWith(".lanhubben.no"))
+    }
+
+    // Kontrollgrensesnitt for Lanhubben-siden: window.LanhubbenApp.*
+    inner class AppBridge {
+        @JavascriptInterface
+        fun getInfo(): String {
+            if (!trustedPage) return "{}"
+            val rotation = prefs.getInt(KEY_ROTATION, 0)
+            return JSONObject()
+                .put("app", "lanhubben-signage")
+                .put("version", BuildConfig.VERSION_NAME)
+                .put("versionCode", BuildConfig.VERSION_CODE)
+                .put("rotation", rotation)
+                .put("online", isOnline())
+                .put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+                .put("android", Build.VERSION.SDK_INT)
+                .toString()
+        }
+
+        @JavascriptInterface
+        fun reload() { if (trustedPage) runOnUiThread { loadPlayer() } }
+
+        // Gyldige verdier: 0, 90, 180, 270. Returnerer true hvis verdien ble godtatt.
+        @JavascriptInterface
+        fun setRotation(degrees: Int): Boolean {
+            if (!trustedPage || degrees !in intArrayOf(0, 90, 180, 270)) return false
+            prefs.edit().putInt(KEY_ROTATION, degrees).apply()
+            runOnUiThread { applyRotation() }
+            return true
+        }
+
+        // Starter aktiviteten på nytt (nullstiller WebView)
+        @JavascriptInterface
+        fun restartApp() { if (trustedPage) runOnUiThread { recreate() } }
     }
 
     companion object {

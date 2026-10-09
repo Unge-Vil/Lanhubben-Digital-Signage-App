@@ -88,6 +88,10 @@ Appen finner du under «Apper» på TV-en. Du kan koble fra med `adb disconnect`
 
 Appen forsøker å starte når enheten skrus på. Android 10 og nyere kan blokkere at apper åpner seg selv i bakgrunnen, så på noen enheter må noen åpne appen manuelt én gang etter strømbrudd. Der autostart virker, starter den uten at noen må gjøre noe.
 
+## Fjernstyring fra Lanhubben
+
+Siden kan styre appen (last på nytt, rotasjon, omstart) via window.LanhubbenApp. Se [docs/REMOTE_CONTROL.md](docs/REMOTE_CONTROL.md).
+
 ## Hindre sleep og skjermsparer
 
 Appen holder skjermen våken, men Android TV har egne innstillinger som kan overstyre det. På hver enhet:
