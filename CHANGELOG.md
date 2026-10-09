@@ -1,6 +1,6 @@
 # Endringslogg
 
-## Ikke utgitt
+## v1.1.0
 
 - Fjernstyring: Lanhubben-siden kan kalle window.LanhubbenApp (getInfo, eload, setRotation, estartApp). Se docs/REMOTE_CONTROL.md
 - Hovedsiden kan bare navigere innen lanhubben.no

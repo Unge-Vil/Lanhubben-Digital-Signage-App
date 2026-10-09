@@ -11,8 +11,8 @@ android {
         applicationId = "no.lanhubben.signage"
         minSdk = 21
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.1.0"
         buildConfigField("String", "PLAYER_URL", "\"https://www.lanhubben.no/lankultur/public/player.php\"")
     }
 
