@@ -18,6 +18,9 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.view.Gravity
+import android.widget.FrameLayout
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -26,6 +29,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var container: FrameLayout
+    private val prefs by lazy { getSharedPreferences("signage", MODE_PRIVATE) }
     private val handler = Handler(Looper.getMainLooper())
     private val retryDelayMs = 10_000L
     private val reload = Runnable { webView.loadUrl(BuildConfig.PLAYER_URL) }
@@ -44,7 +49,14 @@ class MainActivity : AppCompatActivity() {
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
         }
-        setContentView(webView)
+        container = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            addView(webView)
+            addOnLayoutChangeListener { _, l, t, r, b, ol, ot, orr, ob ->
+                if (r - l != orr - ol || b - t != ob - ot) applyRotation()
+            }
+        }
+        setContentView(container)
 
         webView.settings.apply {
             javaScriptEnabled = true
@@ -58,7 +70,7 @@ class MainActivity : AppCompatActivity() {
         CookieManager.getInstance().setAcceptCookie(true)
 
         webView.webChromeClient = object : WebChromeClient() {
-            // Skjuler WebViews grå standard play-ikon mens video lastes
+            // Skjuler WebViews grÃ¥ standard play-ikon mens video lastes
             override fun getDefaultVideoPoster(): Bitmap =
                 Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.TRANSPARENT) }
 
@@ -88,6 +100,45 @@ class MainActivity : AppCompatActivity() {
 
         if (savedInstanceState == null) webView.loadUrl(BuildConfig.PLAYER_URL)
         else webView.restoreState(savedInstanceState)
+
+        if (!prefs.contains(KEY_ROTATION)) showRotationDialog()
+    }
+
+    private fun applyRotation() {
+        val rotation = prefs.getInt(KEY_ROTATION, 0)
+        val w = container.width
+        val h = container.height
+        if (w == 0 || h == 0) return
+        val sideways = rotation == 90 || rotation == 270
+        webView.layoutParams = FrameLayout.LayoutParams(
+            if (sideways) h else w,
+            if (sideways) w else h,
+            Gravity.CENTER
+        )
+        webView.rotation = rotation.toFloat()
+    }
+
+    private fun showRotationDialog() {
+        val labels = arrayOf(
+            "Liggende (standard)",
+            "Stående – roter 90° med klokken",
+            "Opp ned – roter 180°",
+            "Stående – roter 270° (90° mot klokken)"
+        )
+        val values = intArrayOf(0, 90, 180, 270)
+        val current = values.indexOf(prefs.getInt(KEY_ROTATION, 0)).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Skjermrotasjon")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                prefs.edit().putInt(KEY_ROTATION, values[which]).apply()
+                applyRotation()
+                dialog.dismiss()
+            }
+            .setNeutralButton("Last siden på nytt") { _, _ -> webView.loadUrl(BuildConfig.PLAYER_URL) }
+            .setOnCancelListener {
+                if (!prefs.contains(KEY_ROTATION)) prefs.edit().putInt(KEY_ROTATION, 0).apply()
+            }
+            .show()
     }
 
     private fun scheduleReload() {
@@ -107,7 +158,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Menytast/Play-Pause-tast laster siden pÃ¥ nytt (nyttig ved feilsÃ¸king)
+    // Menytast/Play-Pause-tast laster siden pÃƒÂ¥ nytt (nyttig ved feilsÃƒÂ¸king)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
             webView.loadUrl(BuildConfig.PLAYER_URL)
@@ -136,5 +187,9 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
         webView.destroy()
         super.onDestroy()
+    }
+
+    companion object {
+        private const val KEY_ROTATION = "rotation"
     }
 }
