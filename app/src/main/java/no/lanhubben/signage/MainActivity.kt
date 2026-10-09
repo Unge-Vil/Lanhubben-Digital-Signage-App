@@ -1,6 +1,7 @@
 package no.lanhubben.signage
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.http.SslError
 import android.os.Bundle
@@ -56,7 +57,13 @@ class MainActivity : AppCompatActivity() {
         }
         CookieManager.getInstance().setAcceptCookie(true)
 
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            // Skjuler WebViews grå standard play-ikon mens video lastes
+            override fun getDefaultVideoPoster(): Bitmap =
+                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.TRANSPARENT) }
+
+            override fun getVideoLoadingProgressView(): View = View(this@MainActivity)
+        }
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 handler.removeCallbacks(reload)
@@ -100,7 +107,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Menytast/Play-Pause-tast laster siden på nytt (nyttig ved feilsøking)
+    // Menytast/Play-Pause-tast laster siden pÃ¥ nytt (nyttig ved feilsÃ¸king)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
             webView.loadUrl(BuildConfig.PLAYER_URL)
