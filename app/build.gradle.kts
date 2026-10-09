@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "no.lanhubben.signage"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "no.lanhubben.signage"
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "PLAYER_URL", "\"https://www.lanhubben.no/lankultur/public/player.php\"")
